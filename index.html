@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Residentes | Inicio de Sesión</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div id="protocol-warning"
+    style="display: none; background: #fee2e2; color: #991b1b; padding: 1rem; text-align: center; font-weight: bold; border-bottom: 1px solid #ef4444;">
+    ⚠️ ERROR CRÍTICO: Estás abriendo el archivo directamente.
+    <br />
+    <span style="font-weight: normal; font-size: 0.9em;">Por razones de seguridad, esta app NO funciona con doble click
+      en el archivo.</span>
+    <br />
+    <span
+      style="background: #fff; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid #ccc; display: inline-block; margin-top: 0.5rem;">
+      Ejecuta "npm run dev" en la terminal y abre el link (ej: http://localhost:5173)
+    </span>
+  </div>
+
+  <div class="center-screen">
+    <script>
+      // Protocol Check
+      if (window.location.protocol === 'file:') {
+        document.getElementById('protocol-warning').style.display = 'block';
+        document.querySelector('.center-screen').style.opacity = '0.5';
+        document.querySelector('.center-screen').style.pointerEvents = 'none';
+      }
+    </script>
+    <div class="glass-panel fade-in" style="width: 100%; max-width: 440px; border: 1px solid rgba(255,255,255,0.1);">
+      <div style="text-align: center; margin-bottom: 2.5rem;">
+        <div class="logo" style="justify-content: center; font-size: 2.25rem; margin-bottom: 1rem;">
+          <span
+            style="background: linear-gradient(to right, #6366f1, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Residencial</span>WiFi
+        </div>
+        <p style="color: var(--text-muted); font-size: 1.1rem; line-height: 1.6;">
+          Tu hogar conectado.<br>
+          <span style="font-size: 0.95rem; opacity: 0.8;">Gestión inteligente de servicios.</span>
+        </p>
+      </div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="username">Usuario</label>
+          <input type="text" id="username" class="form-input" placeholder="Ej. Departamento A-101" required
+            style="background: rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.1);" />
+        </div>
+
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+          <label class="form-label" for="password">Contraseña</label>
+          <input type="password" id="password" class="form-input" placeholder="••••••••" required
+            style="background: rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.1);" />
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+          <input type="checkbox" id="showPass"
+            style="accent-color: var(--accent); cursor: pointer; width: 1rem; height: 1rem;">
+          <label for="showPass"
+            style="color: var(--text-muted); font-size: 0.9rem; cursor: pointer; user-select: none;">Mostrar
+            contraseña</label>
+        </div>
+
+        <div id="loginError"
+          style="background: rgba(244,63,94,0.1); color: #f43f5e; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.9rem; margin-bottom: 1.5rem; display: none; border: 1px solid rgba(244,63,94,0.2);">
+          Credenciales incorrectas
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; font-size: 1.1rem; padding: 1rem;">
+          Ingresar al Portal
+        </button>
+      </form>
+
+      <div
+        style="text-align: center; margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1);">
+        <p style="font-size: 0.95rem; color: var(--text-muted); margin-bottom: 0.75rem;">¿Eres nuevo residente?</p>
+        <a href="./register.html" class="btn"
+          style="background: rgba(255,255,255,0.05); width: 100%; border: 1px solid rgba(255,255,255,0.1);">
+          Registrar Residencia
+        </a>
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      Desarrollado con ❤️ por <a href="#" style="color: var(--primary);">Fiberlink Servicios TIC</a> | © 2026
+    </footer>
+  </div>
+  <script type="module">
+    import { auth } from './auth.js';
+
+    const form = document.getElementById('loginForm');
+    const errorMsg = document.getElementById('loginError');
+    const submitBtn = form.querySelector('button[type="submit"]');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      console.log('Login form submitted');
+
+      const user = document.getElementById('username').value;
+      const pass = document.getElementById('password').value;
+
+      // Reset UI
+      errorMsg.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Verificando...';
+
+      // Simular delay de red
+      await new Promise(r => setTimeout(r, 600));
+
+      const result = auth.login(user, pass);
+      console.log('Login result:', result);
+
+      if (result.success) {
+        submitBtn.textContent = '¡Bienvenido!';
+        submitBtn.style.background = 'var(--success)';
+
+        setTimeout(() => {
+          if (result.user.role === 'admin') {
+            window.location.href = './admin.html';
+          } else {
+            window.location.href = './dashboard.html';
+          }
+        }, 500);
+      } else {
+        errorMsg.textContent = result.error;
+        errorMsg.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Ingresar';
+      }
+    });
+
+    // Validar si ya hay sesión al cargar
+    // const currentUser = auth.getUser();
+    // if (currentUser) {
+    //    console.log('Sesión activa encontrada, redirigiendo...');
+    //    if (currentUser.role === 'admin') window.location.href = './admin.html';
+    //    else window.location.href = './dashboard.html';
+    // }
+
+    // Toggle Password Visibility
+    const passInput = document.getElementById('password');
+    const showPass = document.getElementById('showPass');
+
+    showPass.addEventListener('change', () => {
+      passInput.type = showPass.checked ? 'text' : 'password';
+    });
+  </script>
+</body>
+
+</html>

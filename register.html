@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portal Residentes | Registro</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+    <div id="protocol-warning"
+        style="display: none; background: #fee2e2; color: #991b1b; padding: 1rem; text-align: center; font-weight: bold; border-bottom: 1px solid #ef4444;">
+        ⚠️ ERROR CRÍTICO: Estás abriendo el archivo directamente.
+        <br />
+        <span style="font-weight: normal; font-size: 0.9em;">Debes usar "npm run dev" para que funcione el
+            registro.</span>
+    </div>
+
+    <div class="center-screen">
+        <script>
+            if (window.location.protocol === 'file:') {
+                document.getElementById('protocol-warning').style.display = 'block';
+                document.querySelector('.center-screen').style.opacity = '0.5';
+                document.querySelector('.center-screen').style.pointerEvents = 'none';
+            }
+        </script>
+        <div class="glass-panel fade-in" style="width: 100%; max-width: 420px;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <h2 style="color: var(--primary);">Crear Cuenta</h2>
+                <p style="color: var(--text-muted);">Registre su departamento</p>
+            </div>
+
+            <form id="registerForm">
+                <div class="form-group">
+                    <label class="form-label" for="regUsername">Usuario / Depto</label>
+                    <input type="text" id="regUsername" class="form-input" placeholder="Ej. TorreB-303" required />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="regPassword">Contraseña</label>
+                    <input type="password" id="regPassword" class="form-input" placeholder="••••••••" required />
+                </div>
+
+                <!-- Role Selection Removed - Default to Resident -->
+                <input type="hidden" name="role" value="resident">
+
+                <div id="regError"
+                    style="color: var(--error); font-size: 0.875rem; margin-bottom: 1rem; display: none;"></div>
+
+                <button type="submit" class="btn btn-accent" style="width: 100%;">
+                    Registrarme
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <a href="./index.html" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">
+                    ← Volver al login
+                </a>
+            </div>
+        </div>
+    </div>
+    <script type="module">
+        import { auth } from './auth.js';
+
+        const form = document.getElementById('registerForm');
+        const errorMsg = document.getElementById('regError');
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('Registration attempt...');
+
+            // UI Loading State
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.textContent = 'Registrando...';
+            submitBtn.disabled = true;
+            errorMsg.style.display = 'none';
+
+            const user = document.getElementById('regUsername').value;
+            const pass = document.getElementById('regPassword').value;
+            const role = 'resident'; // Force resident role
+
+            // Small artificial delay for UX
+            await new Promise(r => setTimeout(r, 800));
+
+            const result = auth.register(user, pass, role);
+
+            console.log('Register result:', result);
+
+            if (result.success) {
+                submitBtn.textContent = '¡Éxito! Redirigiendo...';
+                submitBtn.style.background = 'var(--success)';
+
+                setTimeout(() => {
+                    if (result.user.role === 'admin') {
+                        window.location.href = './admin.html';
+                    } else {
+                        window.location.href = './dashboard.html';
+                    }
+                }, 1000);
+            } else {
+                errorMsg.textContent = result.error;
+                errorMsg.style.display = 'block';
+                submitBtn.textContent = originalBtnText;
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>

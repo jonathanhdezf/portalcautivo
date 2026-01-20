@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portal Admin | Control Panel</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">
+                🛡️ Panel<span>Administrativo</span>
+            </div>
+            <div class="nav-profile-container">
+                <div style="text-align: right;">
+                    <span id="adminName" style="font-weight: 600; display: block;">Admin</span>
+                    <span
+                        style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Superusuario</span>
+                </div>
+                <!-- Admin Open Door SVG -->
+                <div class="nav-avatar admin" title="Portal Admin">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        style="width: 65%; height: 65%;">
+                        <path d="M19 4H5V20H19V4Z" stroke="#fbbf24" stroke-width="2" />
+                        <path d="M5 4L2 22" stroke="#fbbf24" stroke-width="2" stroke-opacity="0.5" />
+                        <path d="M19 4L22 22" stroke="#fbbf24" stroke-width="2" stroke-opacity="0.5" />
+                        <path d="M10 4V20" stroke="#fbbf24" stroke-width="2" />
+                        <path d="M10 12H8" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" />
+                        <path d="M14 4L17 20" stroke="#fbbf24" stroke-width="2" stroke-dasharray="2 2" />
+                    </svg>
+                </div>
+                <button id="logoutBtn" class="btn" style="padding: 0.5rem; margin-left: 0.5rem;" title="Cerrar Sesión">
+                    ⬅️
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container fade-in">
+        <div class="glass-panel" style="margin-top: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">Gestión de Residentes</h2>
+                <button onclick="openCreateUser()" class="btn btn-primary" style="font-size: 0.9rem;">+ Nuevo
+                    Usuario</button>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                    <thead>
+                        <tr
+                            style="color: var(--text-muted); font-size: 0.85rem; border-bottom: 2px solid var(--border);">
+                            <th style="padding: 1rem;">Departamento / Alias</th>
+                            <th style="padding: 1rem;">Estado Pago</th>
+                            <th style="padding: 1rem;">Velocidad Internet</th>
+                            <th style="padding: 1rem;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="residentTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Manager Modal -->
+    <div id="managerModal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 60; align-items: center; justify-content: center;">
+        <div class="glass-panel"
+            style="width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+                <h3 style="margin: 0;">Gestionar Cliente: <span id="managerTitle"
+                        style="color: var(--primary);">...</span></h3>
+                <button onclick="closeManager()"
+                    style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); transition: color 0.2s;">&times;</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <!-- Left Col: Profile & Control -->
+                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <section>
+                        <h4 style="margin-bottom: 0.5rem; color: var(--text-muted);">Perfil</h4>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.8rem;">Alias</label>
+                            <input type="text" id="mgrAlias" class="form-input" placeholder="Ej. Familia Perez">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.5rem;">
+                            <label style="font-size: 0.8rem;">Nombre de Usuario</label>
+                            <input type="text" id="mgrUsername" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-size: 0.8rem;">Nueva Contraseña</label>
+                            <input type="password" id="mgrPassword" class="form-input"
+                                placeholder="Dejar vacio para no cambiar">
+                        </div>
+                        <button onclick="saveProfileChanges()" class="btn btn-primary"
+                            style="width: 100%; margin-top: 0.5rem;">Guardar Perfil</button>
+
+                        <div style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                            <button onclick="deleteUser()" class="btn"
+                                style="width: 100%; background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5;">⚠️
+                                Eliminar Usuario</button>
+                        </div>
+                    </section>
+
+                    <section style="border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <h4 style="margin-bottom: 0.5rem; color: var(--text-muted); margin-top: 1rem;">Servicio</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.8rem;">Estado Pago</label>
+                                <select id="mgrStatus" class="form-input">
+                                    <option value="paid">Pagado</option>
+                                    <option value="pending">Pendiente</option>
+                                    <option value="overdue">Vencido</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.8rem;">Próximo Vencimiento</label>
+                                <input type="date" id="mgrDate" class="form-input" style="color-scheme: dark;">
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem;">
+                            <label style="font-size: 0.8rem;">Velocidad: <span id="mgrSpeedVal">0</span> Mbps</label>
+                            <input type="range" id="mgrSpeed" min="0" max="200"
+                                style="width: 100%; accent-color: var(--accent);">
+                        </div>
+
+                        <!-- WiFi Section -->
+                        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                            <h5 style="margin: 0 0 1rem 0; color: var(--text-muted);">Configuración WiFi</h5>
+                            <div class="form-group" style="margin-bottom: 0.5rem;">
+                                <label style="font-size: 0.8rem;">Identificador WIFI (SSID)</label>
+                                <input type="text" id="mgrWifiSSID" class="form-input" placeholder="Ej. Depto 101">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label style="font-size: 0.8rem;">Contraseña WIFI</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <input type="text" id="mgrWifiPass" class="form-input" placeholder="WPA2 Key">
+                                    <button type="button" onclick="generateRandomPass()" class="btn"
+                                        style="border: 1px solid var(--border); background: transparent;"
+                                        title="Generar Aleatoria">🎲</button>
+                                </div>
+                            </div>
+
+                            <div
+                                style="background: white; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem;">
+                                <img id="mgrQrCode" src="" alt="QR Wifi"
+                                    style="display: none; width: 150px; height: 150px; margin: 0 auto; object-fit: contain;">
+                                <div id="mgrQrPlaceholder"
+                                    style="color: #333; font-size: 0.8rem; height: 150px; display: flex; align-items: center; justify-content: center;">
+                                    Guardar para generar QR
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="saveServiceChanges()" class="btn"
+                            style="width: 100%; margin-top: 0.5rem; background: var(--secondary); color: white;">Actualizar
+                            Servicio y WiFi</button>
+                    </section>
+                </div>
+
+                <!-- Right Col: History -->
+                <div style="border-left: 1px solid var(--border); padding-left: 2rem;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; color: var(--text-muted);">Historial de Pagos</h4>
+                        <button onclick="openAddHistory()" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;"
+                            class="btn">+ Agregar</button>
+                    </div>
+
+                    <div
+                        style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+                        <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+                            <thead style="background: rgba(0,0,0,0.02); position: sticky; top: 0;">
+                                <tr>
+                                    <th style="padding: 0.5rem; text-align: left;">Periodo</th>
+                                    <th style="padding: 0.5rem; text-align: left;">Monto</th>
+                                    <th style="padding: 0.5rem; text-align: left;">Estado</th>
+                                    <th style="padding: 0.5rem;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="mgrHistoryBody">
+                                <!-- JS Populated -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Add/Edit History Form (Hidden by default) -->
+                    <div id="historyEditForm"
+                        style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid var(--border);">
+                        <h5 style="margin: 0 0 0.5rem 0;">Editar Registro</h5>
+                        <input type="hidden" id="histId">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <input type="text" id="histPeriod" placeholder="Periodo (Ej. Enero 2026)" class="form-input"
+                                style="font-size: 0.8rem;">
+                            <input type="date" id="histDate" class="form-input"
+                                style="font-size: 0.8rem; color-scheme: dark;">
+                            <input type="text" id="histAmount" placeholder="Monto" class="form-input"
+                                style="font-size: 0.8rem;">
+                            <select id="histStatus" class="form-input" style="font-size: 0.8rem;">
+                                <option value="paid" style="background: var(--bg-dark);">Pagado</option>
+                                <option value="pending" style="background: var(--bg-dark);">Pendiente</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button onclick="saveHistoryItem()" class="btn btn-primary"
+                                style="flex: 1; font-size: 0.8rem; padding: 0.5rem;">Guardar</button>
+                            <button onclick="cancelHistoryEdit()" class="btn"
+                                style="flex: 1; font-size: 0.8rem; padding: 0.5rem; background: transparent; border: 1px solid var(--border); color: var(--text-muted);">Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div id="createUserModal"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 60; align-items: center; justify-content: center;">
+        <div class="glass-panel" style="width: 90%; max-width: 400px; padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0;">Crear Nuevo Usuario</h3>
+                <button onclick="closeCreateUser()"
+                    style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); transition: color 0.2s;">&times;</button>
+            </div>
+
+            <form onsubmit="createUser(event)">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.8rem;">Nombre de Usuario</label>
+                    <input type="text" id="newUsername" class="form-input" required placeholder="Ej. TorreA-202">
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-size: 0.8rem;">Contraseña</label>
+                    <input type="password" id="newPassword" class="form-input" required placeholder="••••••••">
+                </div>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="font-size: 0.8rem;">Rol</label>
+                    <select id="newRole" class="form-input">
+                        <option value="resident">Residente</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Crear</button>
+                    <button type="button" onclick="closeCreateUser()" class="btn"
+                        style="flex: 1; background: #ccc;">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chatModal"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 100;">
+        <div class="glass-panel"
+            style="width: 90%; max-width: 500px; height: 600px; display: flex; flex-direction: column; padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <h3 id="chatTitle" style="font-size: 1.1rem; margin: 0;">Chat</h3>
+                <button onclick="closeChat()"
+                    style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted); transition: color 0.2s;">&times;</button>
+            </div>
+
+            <div id="chatMessages"
+                style="flex: 1; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: flex; flex-direction: column;">
+                <!-- Messages -->
+            </div>
+
+            <form id="adminChatForm" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div class="emoji-bar" style="display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem;">
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">😀</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">😂</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">👍</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">👋</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">🎉</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">❤️</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">⚠️</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">📅</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">🚀</button>
+                    <button type="button" class="admin-emoji"
+                        style="background:none; border:none; cursor:pointer; font-size:1.2rem;">💬</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="adminMsgInput" class="form-input" placeholder="Responder..." required
+                        style="flex: 1;">
+                    <button type="submit" class="btn btn-primary">Enviar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="app-footer">
+        Desarrollado con ❤️ por <a href="#" style="color: var(--primary);">Fiberlink Servicios TIC</a> | © 2026
+    </footer>
+
+    <script type="module" src="./admin.js"></script>
+</body>
+
+</html>
