@@ -110,7 +110,7 @@
       // Simular delay de red
       await new Promise(r => setTimeout(r, 600));
 
-      const result = auth.login(user, pass);
+      const result = await auth.login(user, pass);
       console.log('Login result:', result);
 
       if (result.success) {

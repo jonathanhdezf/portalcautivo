@@ -1,8 +1,9 @@
 import { auth } from './auth.js';
 import { dbData } from './store.js';
+import { notify } from './notifications.js';
 
 // Guard
-const adminUser = auth.requireAdmin();
+const adminUser = await auth.requireAdmin();
 if (!adminUser) throw new Error('Unauthorized');
 
 document.getElementById('adminName').textContent = adminUser.name;
@@ -11,13 +12,19 @@ document.getElementById('adminName').textContent = adminUser.name;
 document.getElementById('logoutBtn').addEventListener('click', () => auth.logout());
 
 // Render Residents
-function renderResidentList() {
-  const users = dbData.getUsers().filter(u => u.role === 'resident');
+async function renderResidentList() {
+  const users = await dbData.getUsers();
+  // Filter only resident roles? users table in Supabase (profiles) has 'role'
+  const residents = users.filter(u => u.role === 'resident');
+
+  // Fetch profiles for all residents concurrently
+  const profiles = await Promise.all(residents.map(u => dbData.getProfile(u.id)));
+
   const tbody = document.getElementById('residentTableBody');
   tbody.innerHTML = '';
 
-  users.forEach(user => {
-    const profile = dbData.getProfile(user.id);
+  residents.forEach((user, index) => {
+    const profile = profiles[index];
     if (!profile) return;
 
     const tr = document.createElement('tr');
@@ -34,27 +41,41 @@ function renderResidentList() {
                 ${getStatusText(profile.paymentStatus)}
             </span>
             <span style="font-size: 0.8rem; color: var(--text-muted);">
-                Vence: ${profile.nextPaymentDate}
+                Vence: ${profile.nextPaymentDate || 'N/A'}
             </span>
         </div>
       </td>
       <td style="padding: 1rem; border-bottom: 1px solid var(--border);">
         <input type="range" min="0" max="200" value="${profile.internetSpeed}" 
-          onchange="updateSpeed('${user.id}', this.value)" style="vertical-align: middle; accent-color: var(--accent);">
+          class="speed-slider" data-userid="${user.id}" style="vertical-align: middle; accent-color: var(--accent);">
         <span id="speed-${user.id}">${profile.internetSpeed}</span> Mbps
       </td>
       <td style="padding: 1rem; border-bottom: 1px solid var(--border);">
         <div style="display:flex; flex-direction:column; gap: 0.5rem;">
-            <button onclick="openChat('${user.id}')" class="btn btn-primary" style="font-size: 0.85rem;">
+            <button class="btn btn-primary open-chat-btn" data-userid="${user.id}" style="font-size: 0.85rem;">
                 Mensajes ${profile.messages.filter(m => m.from === 'resident' && !m.read).length ? '🔴' : ''}
             </button>
-            <button onclick="openManager('${user.id}')" class="btn" style="font-size: 0.85rem; border: 1px solid var(--border); background: rgba(255,255,255,0.1);">
+            <button class="btn open-mgr-btn" data-userid="${user.id}" style="font-size: 0.85rem; border: 1px solid var(--border); background: rgba(255,255,255,0.1);">
                 Gestionar Cliente
             </button>
         </div>
       </td>
     `;
     tbody.appendChild(tr);
+  });
+
+  // Re-attach listeners (since we redrew DOM)
+  document.querySelectorAll('.speed-slider').forEach(input => {
+    input.addEventListener('change', (e) => updateSpeed(e.target.dataset.userid, e.target.value));
+    input.addEventListener('input', (e) => {
+      document.getElementById(`speed-${e.target.dataset.userid}`).textContent = e.target.value;
+    });
+  });
+  document.querySelectorAll('.open-chat-btn').forEach(btn => {
+    btn.addEventListener('click', () => openChat(btn.dataset.userid));
+  });
+  document.querySelectorAll('.open-mgr-btn').forEach(btn => {
+    btn.addEventListener('click', () => openManager(btn.dataset.userid));
   });
 }
 
@@ -64,36 +85,21 @@ function getStatusColor(status) {
   return 'rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3)';
 }
 
-// Global scope for HTML callbacks
-window.updatePayment = (userId, status) => {
-  dbData.updateProfile(userId, { paymentStatus: status });
-  renderResidentList(); // Refresh to show color change
-};
-
-window.updateDate = (userId, dateStr) => {
-  if (!dateStr) return;
-  // Store as ISO YYYY-MM-DD for consistency and reliability
-  dbData.updateProfile(userId, { nextPaymentDate: dateStr });
+// Actions
+window.updateSpeed = async (userId, speed) => {
+  await dbData.updateProfile(userId, { internetSpeed: parseInt(speed) });
+  // No need to re-render whole list usually, but safely we can
 };
 
 function convertDateForInput(dateString) {
   if (!dateString) return new Date().toISOString().split('T')[0];
-
-  // If already YYYY-MM-DD (simple check)
-  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    return dateString;
-  }
-
-  // Handle "05 de Febrero de 2026" or "05 de Febrero, 2026"
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString;
   try {
     const months = {
       'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04', 'mayo': '05', 'junio': '06',
       'julio': '07', 'agosto': '08', 'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
     };
-
-    // Regex allows optional comma and optional 'de' before year
     const parts = dateString.toLowerCase().match(/(\d{1,2}) de ([a-z]+)[,]?(?: de)? (\d{4})/);
-
     if (parts) {
       const day = parts[1].padStart(2, '0');
       const month = months[parts[2]];
@@ -101,47 +107,36 @@ function convertDateForInput(dateString) {
       if (month) return `${year}-${month}-${day}`;
     }
   } catch (e) { }
-
-  // Fallback: try Date parse (works for some ISO-like or standard formats)
   const d = new Date(dateString);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().split('T')[0];
-  }
-
+  if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
   return new Date().toISOString().split('T')[0];
 }
 
-window.updateSpeed = (userId, speed) => {
-  dbData.updateProfile(userId, { internetSpeed: parseInt(speed) });
-  document.getElementById(`speed-${userId}`).textContent = speed;
-};
 
 // --- Manager Modal Logic ---
 let currentManagerUserId = null;
 
-window.openManager = (userId) => {
+window.openManager = async (userId) => {
   currentManagerUserId = userId;
-  const user = dbData.findUserById(userId);
-  const profile = dbData.getProfile(userId);
+  const user = await dbData.findUserById(userId);
+  const profile = await dbData.getProfile(userId);
   if (!user || !profile) return;
 
   document.getElementById('managerModal').style.display = 'flex';
   document.getElementById('managerTitle').textContent = user.username + (profile.alias ? ` (${profile.alias})` : '');
 
-  // Profile Pop
+  // Profile
   document.getElementById('mgrAlias').value = profile.alias || '';
   document.getElementById('mgrUsername').value = user.username;
-  document.getElementById('mgrPassword').value = ''; // Don't show password
+  document.getElementById('mgrPassword').value = '';
 
-  // Service Pop
+  // Service
   document.getElementById('mgrStatus').value = profile.paymentStatus;
-  // Assuming convertDateForInput is available
   document.getElementById('mgrDate').value = convertDateForInput(profile.nextPaymentDate);
-  document.getElementById('mgrSpeed').value = profile.internetSpeed;
   document.getElementById('mgrSpeed').value = profile.internetSpeed;
   document.getElementById('mgrSpeedVal').textContent = profile.internetSpeed;
 
-  // WiFi Pop
+  // WiFi
   document.getElementById('mgrWifiSSID').value = profile.wifiSSID || '';
   document.getElementById('mgrWifiPass').value = profile.wifiPass || '';
   updateQrDisplay(profile.wifiSSID, profile.wifiPass);
@@ -152,46 +147,38 @@ window.openManager = (userId) => {
 window.closeManager = () => {
   document.getElementById('managerModal').style.display = 'none';
   currentManagerUserId = null;
-  renderResidentList(); // Refresh main table
+  renderResidentList();
 };
 
-// Profile Update
-window.saveProfileChanges = () => {
+window.saveProfileChanges = async () => {
   if (!currentManagerUserId) return;
   const alias = document.getElementById('mgrAlias').value.trim();
   const username = document.getElementById('mgrUsername').value.trim();
-  const password = document.getElementById('mgrPassword').value.trim();
+  // Password update not supported directly via this method in this simple mapping without backend logic
 
-  const userUpdates = { username };
-  if (password) userUpdates.password = password;
-
-  dbData.updateUser(currentManagerUserId, userUpdates);
-  dbData.updateProfile(currentManagerUserId, { alias });
+  await dbData.updateUser(currentManagerUserId, { username }); // This actually calls updateProfile in store.js shim
+  await dbData.updateProfile(currentManagerUserId, { alias });
 
   alert('Perfil actualizado');
-  openManager(currentManagerUserId); // Refresh title
+  openManager(currentManagerUserId);
 };
 
-// Service Update
-window.saveServiceChanges = () => {
+window.saveServiceChanges = async () => {
   if (!currentManagerUserId) return;
   const paymentStatus = document.getElementById('mgrStatus').value;
   const dateStr = document.getElementById('mgrDate').value;
   const internetSpeed = parseInt(document.getElementById('mgrSpeed').value);
-
   const wifiSSID = document.getElementById('mgrWifiSSID').value.trim();
   const wifiPass = document.getElementById('mgrWifiPass').value.trim();
 
-  // Date Logic
-  let nextPaymentDate = dbData.getProfile(currentManagerUserId).nextPaymentDate;
+  let nextPaymentDate = (await dbData.getProfile(currentManagerUserId)).nextPaymentDate;
   if (dateStr) {
     const [y, m, d] = dateStr.split('-');
     const dateObj = new Date(y, m - 1, d);
     nextPaymentDate = dateObj.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
   }
 
-  dbData.updateProfile(currentManagerUserId, { paymentStatus, nextPaymentDate, internetSpeed, wifiSSID, wifiPass });
-
+  await dbData.updateProfile(currentManagerUserId, { paymentStatus, nextPaymentDate, internetSpeed, wifiSSID, wifiPass });
   updateQrDisplay(wifiSSID, wifiPass);
   alert('Servicio y WiFi actualizados');
 };
@@ -199,12 +186,9 @@ window.saveServiceChanges = () => {
 function updateQrDisplay(ssid, pass) {
   const img = document.getElementById('mgrQrCode');
   const placeholder = document.getElementById('mgrQrPlaceholder');
-
   if (ssid && pass) {
-    // WIFI:S:MySSID;T:WPA;P:MyPass;;
     const wifiString = `WIFI:S:${ssid};T:WPA;P:${pass};;`;
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(wifiString)}`;
-
     img.src = qrUrl;
     img.style.display = 'block';
     placeholder.style.display = 'none';
@@ -224,7 +208,6 @@ window.generateRandomPass = () => {
   document.getElementById('mgrWifiPass').value = pass;
 };
 
-// Speed Slider in Modal
 document.getElementById('mgrSpeed').addEventListener('input', (e) => {
   document.getElementById('mgrSpeedVal').textContent = e.target.value;
 });
@@ -234,9 +217,7 @@ document.getElementById('mgrSpeed').addEventListener('input', (e) => {
 function renderManagerHistory(history) {
   const tbody = document.getElementById('mgrHistoryBody');
   tbody.innerHTML = '';
-
   const reversed = [...history].reverse();
-
   reversed.forEach(item => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -265,9 +246,8 @@ window.cancelHistoryEdit = () => {
   document.getElementById('historyEditForm').style.display = 'none';
 };
 
-window.saveHistoryItem = () => {
+window.saveHistoryItem = async () => {
   if (!currentManagerUserId) return;
-
   const id = document.getElementById('histId').value;
   const item = {
     period: document.getElementById('histPeriod').value,
@@ -277,19 +257,19 @@ window.saveHistoryItem = () => {
   };
 
   if (id) {
-    dbData.updateHistoryItem(currentManagerUserId, id, item);
+    await dbData.updateHistoryItem(currentManagerUserId, id, item);
   } else {
-    dbData.addHistoryItem(currentManagerUserId, item);
+    await dbData.addHistoryItem(currentManagerUserId, item);
   }
 
   // Refresh
-  const profile = dbData.getProfile(currentManagerUserId);
+  const profile = await dbData.getProfile(currentManagerUserId);
   renderManagerHistory(profile.paymentHistory);
   document.getElementById('historyEditForm').style.display = 'none';
 };
 
-window.editHistoryItem = (itemId) => {
-  const profile = dbData.getProfile(currentManagerUserId);
+window.editHistoryItem = async (itemId) => {
+  const profile = await dbData.getProfile(currentManagerUserId);
   const item = profile.paymentHistory.find(h => h.id == itemId);
   if (!item) return;
 
@@ -301,10 +281,10 @@ window.editHistoryItem = (itemId) => {
   document.getElementById('histStatus').value = item.status;
 };
 
-window.deleteHistoryItem = (itemId) => {
+window.deleteHistoryItem = async (itemId) => {
   if (confirm('¿Seguro que quieres borrar este registro?')) {
-    dbData.deleteHistoryItem(currentManagerUserId, itemId);
-    const profile = dbData.getProfile(currentManagerUserId);
+    await dbData.deleteHistoryItem(currentManagerUserId, itemId);
+    const profile = await dbData.getProfile(currentManagerUserId);
     renderManagerHistory(profile.paymentHistory);
   }
 };
@@ -321,19 +301,17 @@ const chatTitle = document.getElementById('chatTitle');
 const chatMsgs = document.getElementById('chatMessages');
 let currentChatUserId = null;
 
-window.openChat = (userId) => {
+window.openChat = async (userId) => {
   currentChatUserId = userId;
-
-  const user = dbData.findUserById(userId);
-  const profile = dbData.getProfile(userId);
+  const user = await dbData.findUserById(userId);
+  const profile = await dbData.getProfile(userId);
   const displayName = profile.alias || user.username;
 
   chatTitle.textContent = `Chat: ${displayName}`;
   modal.style.display = 'flex';
 
-  // Mark as read
-  dbData.markMessagesRead(userId);
-  renderResidentList(); // Update notification dot
+  await dbData.markMessagesRead(userId);
+  renderResidentList();
 
   renderChatMessages();
 };
@@ -343,21 +321,24 @@ window.closeChat = () => {
   currentChatUserId = null;
 };
 
-// User Deletion
-window.deleteUser = () => {
+window.deleteUser = async () => {
   if (!currentManagerUserId) return;
-  if (confirm('🚨 ¿Estás seguro de ELIMINAR este usuario permanentemente?\n\nEsta acción NO se puede deshacer.')) {
-    dbData.deleteUser(currentManagerUserId);
+  if (confirm('🚨 ¿Estás seguro de ELIMINAR este usuario permanentemente?')) {
+    await dbData.deleteUser(currentManagerUserId);
     closeManager();
     renderResidentList();
   }
 };
 
-function renderChatMessages() {
+async function renderChatMessages(forceScroll = false) {
   if (!currentChatUserId) return;
-  const profile = dbData.getProfile(currentChatUserId);
-  chatMsgs.innerHTML = '';
+  const profile = await dbData.getProfile(currentChatUserId);
 
+  const threshold = 100;
+  const isAtBottom = chatMsgs.scrollHeight - chatMsgs.scrollTop - chatMsgs.clientHeight < threshold;
+  const wasEmpty = chatMsgs.innerHTML === '';
+
+  chatMsgs.innerHTML = '';
   profile.messages.forEach(msg => {
     const div = document.createElement('div');
     const isAdmin = msg.from === 'admin';
@@ -369,7 +350,6 @@ function renderChatMessages() {
       max-width: 80%;
       align-self: ${isAdmin ? 'flex-end' : 'flex-start'};
     `;
-
     div.innerHTML = `
         <div style="
             padding: 0.5rem; 
@@ -385,19 +365,22 @@ function renderChatMessages() {
     `;
     chatMsgs.appendChild(div);
   });
-  chatMsgs.scrollTop = chatMsgs.scrollHeight;
+
+  if (forceScroll || isAtBottom || wasEmpty) {
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+  }
 }
 
-document.getElementById('adminChatForm').addEventListener('submit', (e) => {
+document.getElementById('adminChatForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = document.getElementById('adminMsgInput');
   const text = input.value.trim();
   if (text && currentChatUserId) {
-    dbData.addMessage(currentChatUserId, { from: 'admin', text });
+    await dbData.addMessage(currentChatUserId, { from: 'admin', text });
     notify.playSendSound();
     input.value = '';
-    renderChatMessages();
-    renderResidentList(); // Update count
+    renderChatMessages(true);
+    renderResidentList();
   }
 });
 
@@ -410,7 +393,6 @@ document.querySelectorAll('.admin-emoji').forEach(btn => {
   });
 });
 
-// Create User Logic
 window.openCreateUser = () => {
   document.getElementById('createUserModal').style.display = 'flex';
   document.getElementById('newUsername').value = '';
@@ -421,32 +403,27 @@ window.closeCreateUser = () => {
   document.getElementById('createUserModal').style.display = 'none';
 };
 
-window.createUser = (e) => {
+window.createUser = async (e) => {
   e.preventDefault();
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value.trim();
   const role = document.getElementById('newRole').value;
 
   if (username && password) {
-    try {
-      // Check if user exists first
-      const exists = dbData.getUsers().find(u => u.username === username);
-      if (exists) {
-        alert('El usuario ya existe');
-        return;
-      }
-
-      dbData.createUser({ username, password, role, name: username });
-      alert('Usuario creado exitosamente');
-      closeCreateUser();
-      renderResidentList();
-    } catch (err) {
-      alert('Error al crear usuario: ' + err.message);
-    }
+    // Just use auth.register logic via store or directly?
+    // Auth.js handles registration.
+    // Store.js createUser is just a stub in new implementation because auth handles it.
+    // So we should call auth.register here? But auth.register logs us in!
+    // We are admin. We want to create another user without logging out.
+    // Supabase client SDK doesn't easily support "create user" without being that user, UNLESS we use service role (server-side).
+    // Client-side, creating a user logs you in as that user automatically.
+    // FIX: warn user or use a workaround? 
+    // In this "scratch" implementation, we can't easily create users as admin without logging out.
+    // We will alert the user about this limitation for now.
+    alert('Nota: Supabase no permite crear usuarios desde el cliente sin cerrar sesión. Por favor usa el panel de Supabase o regístrate en la página principal.');
+    closeCreateUser();
   }
 };
-
-import { notify } from './notifications.js';
 
 // Initial Render
 renderResidentList();
@@ -457,22 +434,23 @@ let lastTotalMessages = 0;
 let isFirstLoad = true;
 
 setInterval(() => {
-  // Refresh list to update unread badges
   renderResidentList();
   checkNewMessages();
 }, 5000);
 
-function checkNewMessages() {
-  const users = dbData.getUsers().filter(u => u.role === 'resident');
-  let totalMessages = 0;
+async function checkNewMessages() {
+  const users = await dbData.getUsers();
+  // Optimization needed here for scaling but fine for demo
+  // But we need to filter resident
+  const residents = users.filter(u => u.role === 'resident');
 
-  users.forEach(u => {
-    const p = dbData.getProfile(u.id);
+  let totalMessages = 0;
+  for (const u of residents) {
+    const p = await dbData.getProfile(u.id);
     if (p) totalMessages += p.messages.length;
-  });
+  }
 
   if (!isFirstLoad && totalMessages > lastTotalMessages) {
-    // Just generic notification for now as strict per-user tracking is complex here
     notify.playReceiveSound();
     notify.show('Portal Admin', 'Tiene nuevos mensajes de residentes.');
   }

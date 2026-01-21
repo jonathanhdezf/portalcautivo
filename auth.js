@@ -1,44 +1,83 @@
 /**
  * Auth.js
- * Manages user sessions.
+ * Manages user sessions via Supabase.
  */
-import { dbData } from './store.js';
-
-const SESSION_KEY = 'portal_session';
+import { supabase } from './lib/supabase.js';
 
 export const auth = {
-    login(username, password) {
-        const user = dbData.findUser(username);
-        if (user && user.password === password) {
-            localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-            return { success: true, user };
+    async login(email, password) {
+        // Supabase requires email, but our app uses 'username' sometimes.
+        // For this migration, we will assume the input IS an email or we fake an email if it's just a username
+        // E.g. username@residential.app
+        // ideally user inputs email.
+
+        let finalEmail = email;
+        if (!email.includes('@')) {
+            finalEmail = `${email.replace(/\s+/g, '')}@portal.local`; // Mock domain for username-based login
         }
-        return { success: false, error: 'Credenciales inválidas' };
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: finalEmail,
+            password: password
+        });
+
+        if (error) return { success: false, error: error.message };
+
+        // Fetch role from metadata
+        const user = data.user;
+        const role = user.user_metadata.role || 'resident';
+        const name = user.user_metadata.name || email;
+
+        return {
+            success: true,
+            user: { ...user, role, name, username: email }
+        };
     },
 
-    register(username, password, role = 'resident') {
-        try {
-            const newUser = dbData.createUser({ username, password, role, name: username });
-            this.login(username, password); // Auto login
-            return { success: true, user: newUser };
-        } catch (e) {
-            return { success: false, error: e.message };
+    async register(username, password, role = 'resident') {
+        let finalEmail = username;
+        if (!username.includes('@')) {
+            finalEmail = `${username.replace(/\s+/g, '')}@portal.local`;
         }
+
+        const { data, error } = await supabase.auth.signUp({
+            email: finalEmail,
+            password: password,
+            options: {
+                data: {
+                    role: role,
+                    username: username,
+                    name: username
+                }
+            }
+        });
+
+        if (error) return { success: false, error: error.message };
+        return { success: true, user: data.user };
     },
 
-    logout() {
-        localStorage.removeItem(SESSION_KEY);
+    async logout() {
+        await supabase.auth.signOut();
         window.location.href = './index.html';
     },
 
-    getUser() {
-        const data = localStorage.getItem(SESSION_KEY);
-        return data ? JSON.parse(data) : null;
+    async getUser() {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) return null;
+
+        const u = data.session.user;
+        return {
+            id: u.id,
+            email: u.email,
+            role: u.user_metadata.role,
+            name: u.user_metadata.name || u.email,
+            username: u.user_metadata.username
+        };
     },
 
-    // Guards
-    requireAuth() {
-        const user = this.getUser();
+    // Guards - Now Async!
+    async requireAuth() {
+        const user = await this.getUser();
         if (!user) {
             window.location.href = './index.html';
             return null;
@@ -46,8 +85,8 @@ export const auth = {
         return user;
     },
 
-    requireAdmin() {
-        const user = this.requireAuth();
+    async requireAdmin() {
+        const user = await this.requireAuth();
         if (user && user.role !== 'admin') {
             window.location.href = './dashboard.html';
             return null;

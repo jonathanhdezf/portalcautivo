@@ -23,14 +23,13 @@
                 </div>
                 <!-- Admin Open Door SVG -->
                 <div class="nav-avatar admin" title="Portal Admin">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-                        style="width: 65%; height: 65%;">
-                        <path d="M19 4H5V20H19V4Z" stroke="#fbbf24" stroke-width="2" />
-                        <path d="M5 4L2 22" stroke="#fbbf24" stroke-width="2" stroke-opacity="0.5" />
-                        <path d="M19 4L22 22" stroke="#fbbf24" stroke-width="2" stroke-opacity="0.5" />
-                        <path d="M10 4V20" stroke="#fbbf24" stroke-width="2" />
-                        <path d="M10 12H8" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" />
-                        <path d="M14 4L17 20" stroke="#fbbf24" stroke-width="2" stroke-dasharray="2 2" />
+                    <svg class="door-icon" viewBox="0 0 24 24" stroke="currentColor" fill="none">
+                        <path class="door-frame" d="M5 4h14v17h-14z" />
+                        <path class="door-door" d="M5 4h14v17h-14z" style="transform-origin: 5px 12px;">
+                            <!-- Admin Decoration: Grid Lines -->
+                            <path d="M5 12h14" stroke-opacity="0.3" stroke-width="1" />
+                            <path d="M12 4v17" stroke-opacity="0.3" stroke-width="1" />
+                        </path>
                     </svg>
                 </div>
                 <button id="logoutBtn" class="btn" style="padding: 0.5rem; margin-left: 0.5rem;" title="Cerrar Sesión">
@@ -211,7 +210,7 @@
                             <button onclick="saveHistoryItem()" class="btn btn-primary"
                                 style="flex: 1; font-size: 0.8rem; padding: 0.5rem;">Guardar</button>
                             <button onclick="cancelHistoryEdit()" class="btn"
-                                style="flex: 1; font-size: 0.8rem; padding: 0.5rem; background: transparent; border: 1px solid var(--border); color: var(--text-muted);">Cancelar</button>
+                                style="flex: 1; font-size: 0.8rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: var(--text-main);">Cancelar</button>
                         </div>
                     </div>
                 </div>

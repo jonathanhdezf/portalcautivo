@@ -1,263 +1,210 @@
 /**
  * Store.js
- * Simulates a database using localStorage.
+ * Manages data via Supabase.
  */
-
-const STORAGE_KEY = 'portal_db_v1';
-
-const INITIAL_DB = {
-    users: [
-        { id: 'u1', username: 'admin', password: '123', role: 'admin', name: 'Administrador' },
-        { id: 'u2', username: 'TorreA-101', password: '123', role: 'resident', name: 'Familia Perez' },
-        // Default Departments
-        { id: 'd1', username: 'Departamento1', password: '123', role: 'resident', name: 'Departamento 1' },
-        { id: 'd2', username: 'Departamento2', password: '123', role: 'resident', name: 'Departamento 2' },
-        { id: 'd3', username: 'Departamento3', password: '123', role: 'resident', name: 'Departamento 3' },
-        { id: 'd4', username: 'Departamento4', password: '123', role: 'resident', name: 'Departamento 4' },
-        { id: 'd5', username: 'Departamento5', password: '123', role: 'resident', name: 'Departamento 5' },
-    ],
-    // Data keyed by userId
-    profiles: {
-        'u2': {
-            alias: '',
-            paymentStatus: 'paid',
-            nextPaymentDate: '2026-02-05',
-            internetSpeed: 100,
-            wifiSSID: 'Residencial_A101',
-            wifiPass: 'Perez2026',
-            messages: [
-                {
-                    id: 1,
-                    from: 'admin',
-                    text: 'Bienvenido a Residencial WiFi.\nActualmente navega a 150 Mb de velocidad.\n¿Sabía que puede disfrutar de Claro Video gratis como parte de su servicio?\nSi tiene alguna duda, estoy aquí para ayudarle.',
-                    timestamp: Date.now() - 100000
-                },
-            ],
-            paymentHistory: generateMockHistory()
-        },
-        'd1': createDefaultProfile(),
-        'd2': createDefaultProfile(),
-        'd3': createDefaultProfile(),
-        'd4': createDefaultProfile(),
-        'd5': createDefaultProfile(),
-    }
-};
-
-function createDefaultProfile() {
-    return {
-        alias: '',
-        paymentStatus: 'pending',
-        nextPaymentDate: '2026-02-05',
-        internetSpeed: 150,
-        wifiSSID: '',
-        wifiPass: '',
-        messages: [{
-            id: Date.now(),
-            from: 'admin',
-            text: 'Bienvenido a Residencial WiFi.\nActualmente navega a 150 Mb de velocidad.\n¿Sabía que puede disfrutar de Claro Video gratis como parte de su servicio?\nSi tiene alguna duda, estoy aquí para ayudarle.',
-            timestamp: Date.now()
-        }],
-        paymentHistory: generateMockHistory()
-    };
-}
-
-function generateMockHistory() {
-    const history = [];
-    const today = new Date();
-
-    // Last Month
-    const lastMonth = new Date(today);
-    lastMonth.setMonth(today.getMonth() - 1);
-    history.push({
-        id: Date.now() - 10000000,
-        date: lastMonth.toISOString().split('T')[0],
-        period: `${lastMonth.toLocaleString('es-MX', { month: 'long' })} ${lastMonth.getFullYear()}`,
-        amount: '$2,500.00',
-        status: 'paid'
-    });
-
-    // Current Month (placeholder based on current status)
-    history.push({
-        id: Date.now() - 5000000,
-        date: today.toISOString().split('T')[0],
-        period: `${today.toLocaleString('es-MX', { month: 'long' })} ${today.getFullYear()}`,
-        amount: '$2,500.00',
-        status: 'pending' // Will sync with main status in logic
-    });
-
-    return history;
-}
+import { supabase } from './lib/supabase.js';
 
 export const dbData = {
-    init() {
-        if (!localStorage.getItem(STORAGE_KEY)) {
-            this.save(INITIAL_DB);
-        }
-    },
-
-    getAll() {
-        const data = localStorage.getItem(STORAGE_KEY);
-        return data ? JSON.parse(data) : INITIAL_DB;
-    },
-
-    save(data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    },
+    // No init needed for Supabase (client is stateless)
 
     // User Methods
-    getUsers() {
-        return this.getAll().users;
+    async getUsers() {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*');
+        if (error) {
+            console.error('Error fetching users:', error);
+            return [];
+        }
+        return data || [];
     },
 
-    findUser(username) {
-        return this.getUsers().find(u => u.username === username);
+    async findUser(username) {
+        // This is tricky with Supabase Auth as we can't search auth.users directly easily from client
+        // But we can search our 'profiles' table.
+        // However, 'login' in auth.js handles the actual auth. 
+        // This method might be obsolete or used for other checks.
+        // We'll search profiles by username.
+        const { data } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('username', username)
+            .single();
+        return data;
     },
 
-    createUser(user) {
-        const db = this.getAll();
-        if (db.users.find(u => u.username === user.username)) {
-            throw new Error('El usuario ya existe');
-        }
-        const newUser = { ...user, id: 'u' + Date.now() };
-        db.users.push(newUser);
+    async findUserById(userId) {
+        const { data } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+        return data;
+    },
 
-        // Create empty profile if resident
-        if (user.role === 'resident') {
-            db.profiles[newUser.id] = {
-                alias: '',
-                paymentStatus: 'pending',
-                nextPaymentDate: getNextMonthDate(),
-                internetSpeed: 150, // Default speed
-                wifiSSID: '',
-                wifiPass: '',
-                messages: [{
-                    id: Date.now(),
-                    from: 'admin',
-                    text: 'Bienvenido a Residencial WiFi.\nActualmente navega a 150 Mb de velocidad.\n¿Sabía que puede disfrutar de Claro Video gratis como parte de su servicio?\nSi tiene alguna duda, estoy aquí para ayudarle.',
-                    timestamp: Date.now()
-                }],
-                paymentHistory: generateMockHistory()
-            };
-        }
-
-        this.save(db);
-        return newUser;
+    async createUser(user) {
+        // Handled by Auth.js largely, but maybe we need to ensure profile?
+        // Trigger in SQL handles profile creation.
+        // So this might just be a no-op or return true.
+        return null;
     },
 
     // Profile Methods
-    getProfile(userId) {
-        return this.getAll().profiles[userId];
+    async getProfile(userId) {
+        // Fetch Profile + Messages (joined? No, separate for now to map to existing structure)
+
+        // 1. Get Profile
+        const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+
+        if (error || !profile) return null;
+
+        // 2. Get Messages
+        const { data: messages } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: true });
+
+        // 3. Get Payment History
+        const { data: history } = await supabase
+            .from('payment_history')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false }); // Reversed for display usually
+
+        // Map to existing structure expected by UI
+        return {
+            id: profile.id,
+            username: profile.username,
+            alias: profile.alias || '',
+            paymentStatus: profile.payment_status,
+            nextPaymentDate: profile.next_payment_date,
+            internetSpeed: profile.internet_speed,
+            wifiSSID: profile.wifi_ssid,
+            wifiPass: profile.wifi_pass,
+            messages: messages.map(m => ({
+                id: m.id,
+                text: m.text,
+                from: m.sender_role,
+                timestamp: new Date(m.created_at).getTime(), // UI expects numeric timestamp
+                read: m.read
+            })),
+            paymentHistory: history.map(h => ({
+                id: h.id,
+                period: h.period,
+                amount: h.amount,
+                status: h.status,
+                date: h.date,
+                timestamp: new Date(h.created_at).getTime()
+            }))
+        };
     },
 
-    updateProfile(userId, updates) {
-        const db = this.getAll();
-        if (!db.profiles[userId]) return null;
+    async updateProfile(userId, updates) {
+        // Map camelCase to snake_case
+        const sqlUpdates = {};
+        if (updates.alias !== undefined) sqlUpdates.alias = updates.alias;
+        if (updates.paymentStatus !== undefined) sqlUpdates.payment_status = updates.paymentStatus;
+        if (updates.nextPaymentDate !== undefined) sqlUpdates.next_payment_date = updates.nextPaymentDate;
+        if (updates.internetSpeed !== undefined) sqlUpdates.internet_speed = updates.internetSpeed;
+        if (updates.wifiSSID !== undefined) sqlUpdates.wifi_ssid = updates.wifiSSID;
+        if (updates.wifiPass !== undefined) sqlUpdates.wifi_pass = updates.wifiPass;
 
-        // Apply updates
-        db.profiles[userId] = { ...db.profiles[userId], ...updates };
+        const { data, error } = await supabase
+            .from('profiles')
+            .update(sqlUpdates)
+            .eq('id', userId)
+            .select()
+            .single();
 
-        // SYNC LOGIC: If paymentStatus changed, update the latest history item too
-        if (updates.paymentStatus && db.profiles[userId].paymentHistory.length > 0) {
-            const history = db.profiles[userId].paymentHistory;
-            const lastItem = history[history.length - 1];
-            // Update the last item's status to match the main profile status
-            lastItem.status = updates.paymentStatus;
-        }
+        if (error) console.error('Update profile error:', error);
+        return data;
+    },
 
-        this.save(db);
-        return db.profiles[userId];
+    async updateUser(userId, updates) {
+        // Only some things can be updated in profiles. Auth updates (pass) handled by auth api (restricted).
+        // We'll just update profile fields if any.
+        return this.updateProfile(userId, updates);
     },
 
     // Messaging
-    addMessage(userId, message) {
-        const db = this.getAll();
-        if (!db.profiles[userId]) return;
+    async addMessage(userId, message) {
+        // message: { from: 'resident'|'admin', text: '...' }
+        const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                user_id: userId,
+                text: message.text,
+                sender_role: message.from,
+                read: false
+            })
+            .select()
+            .single();
 
-        const newMsg = {
-            id: Date.now(),
-            timestamp: Date.now(),
-            ...message,
-            read: false // Default to unread
-        };
-
-        db.profiles[userId].messages.push(newMsg);
-        this.save(db);
-        return newMsg;
+        if (error) console.error('Send Msg Error:', error);
+        return data;
     },
 
-    markMessagesRead(userId) {
-        const db = this.getAll();
-        if (!db.profiles[userId]) return;
+    async markMessagesRead(userId) {
+        // Mark all messages FROM resident AS read (when admin opens chat)
+        // OR all messages FROM admin AS read (when resident opens chat) - logic depends on who calls it.
+        // The existing store.js logic was:
+        // "Mark all messages FROM resident AS read" implies this is called by Admin.
 
-        let changed = false;
-        db.profiles[userId].messages.forEach(msg => {
-            if (msg.from === 'resident' && !msg.read) {
-                msg.read = true;
-                changed = true;
-            }
-        });
-
-        if (changed) this.save(db);
+        // Let's assume this is Admin clearing resident notifications.
+        await supabase
+            .from('messages')
+            .update({ read: true })
+            .eq('user_id', userId)
+            .eq('sender_role', 'resident')
+            .eq('read', false);
     },
 
-    findUserById(userId) {
-        return this.getUsers().find(u => u.id === userId);
+    // History
+    async addHistoryItem(userId, item) {
+        // item: { period, amount, status, date }
+        const { error } = await supabase
+            .from('payment_history')
+            .insert({
+                user_id: userId,
+                period: item.period,
+                amount: item.amount,
+                status: item.status,
+                date: item.date
+            });
+        if (error) console.error(error);
     },
 
-    updateUser(userId, updates) {
-        const db = this.getAll();
-        const userIndex = db.users.findIndex(u => u.id === userId);
-        if (userIndex !== -1) {
-            db.users[userIndex] = { ...db.users[userIndex], ...updates };
-            this.save(db);
-        }
+    async updateHistoryItem(userId, itemId, updates) {
+        const { error } = await supabase
+            .from('payment_history')
+            .update(updates)
+            .eq('id', itemId);
+        if (error) console.error(error);
     },
 
-    addHistoryItem(userId, item) {
-        const db = this.getAll();
-        const profile = db.profiles[userId];
-        if (profile) {
-            if (!profile.paymentHistory) profile.paymentHistory = [];
-            profile.paymentHistory.push({ ...item, id: Date.now() });
-            this.save(db);
-        }
+    async deleteHistoryItem(userId, itemId) {
+        const { error } = await supabase
+            .from('payment_history')
+            .delete()
+            .eq('id', itemId);
+        if (error) console.error(error);
     },
 
-    updateHistoryItem(userId, itemId, updates) {
-        const db = this.getAll();
-        const profile = db.profiles[userId];
-        if (profile && profile.paymentHistory) {
-            const index = profile.paymentHistory.findIndex(h => h.id == itemId);
-            if (index !== -1) {
-                profile.paymentHistory[index] = { ...profile.paymentHistory[index], ...updates };
-                this.save(db);
-            }
-        }
-    },
+    async deleteUser(userId) {
+        // Deleting user from Auth is tricky from client (requires Service Role).
+        // But we can delete from 'profiles' which might cascade if set up, 
+        // OR we just assume we can't fully delete auth user without Edge Function.
+        // For now, we'll try deleting from profiles.
+        const { error } = await supabase
+            .from('profiles')
+            .delete()
+            .eq('id', userId);
 
-    deleteHistoryItem(userId, itemId) {
-        const db = this.getAll();
-        const profile = db.profiles[userId];
-        if (profile && profile.paymentHistory) {
-            profile.paymentHistory = profile.paymentHistory.filter(h => h.id != itemId);
-            this.save(db);
-        }
-    },
-
-    deleteUser(userId) {
-        const db = this.getAll();
-        db.users = db.users.filter(u => u.id !== userId);
-        delete db.profiles[userId];
-        this.save(db);
+        if (error) alert('Note: User profile deleted, but Auth account may remain requires Admin API.');
     }
 };
-
-function getNextMonthDate() {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 1);
-    d.setDate(5); // Default to 5th of next month
-    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
-}
-
-// Initialize on load
-dbData.init();

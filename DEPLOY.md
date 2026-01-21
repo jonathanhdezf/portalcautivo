@@ -32,6 +32,23 @@ Si quieres actualizaciones automáticas cada vez que guardes cambios:
    * **Output Directory**: `dist`
 6. Dale a "Deploy".
 
+## Paso 4: Configuración de Variables de Entorno (CRÍTICO)
+Para que tu App se conecte a Supabase en producción, debes configurar las claves manualmente en el panel de tu host (Netlify o Vercel), ya que el archivo `.env` **NO** se sube a GitHub por seguridad.
+
+### En Netlify:
+1. Ve a **Site configuration** > **Environment variables**.
+2. Agrega las siguientes variables (copialas de tu archivo `.env` local):
+   * Key: `VITE_SUPABASE_URL`  Value: `https://tu-proyecto.supabase.co`
+   * Key: `VITE_SUPABASE_ANON_KEY` Value: `tu-clave-larga-anonima...`
+
+### En Vercel:
+1. Ve a **Settings** > **Environment Variables**.
+2. Agrega las mismas variables:
+   * `VITE_SUPABASE_URL`
+   * `VITE_SUPABASE_ANON_KEY`
+
+> **Nota:** Después de agregar las variables, es posible que necesites hacer un "Redeploy" (volver a desplegar) para que los cambios surtan efecto.
+
 ## Notas Importantes
 * **Base de Datos**: Actualmente el proyecto usa `localStorage` (simulación local).
     * *Nota*: Al publicar en web, si borras la caché del navegador o entras desde otro dispositivo, los datos (usuarios, chats) comenzarán vacíos o separados.

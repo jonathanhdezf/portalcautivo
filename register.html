@@ -84,7 +84,7 @@
             // Small artificial delay for UX
             await new Promise(r => setTimeout(r, 800));
 
-            const result = auth.register(user, pass, role);
+            const result = await auth.register(user, pass, role);
 
             console.log('Register result:', result);
 
